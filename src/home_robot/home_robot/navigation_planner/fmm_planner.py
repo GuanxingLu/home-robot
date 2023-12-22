@@ -205,6 +205,7 @@ class FMMPlanner:
         subset *= mask
         subset += (1 - mask) * self.fmm_dist.shape[0] ** 2
 
+        # visualize = True
         if visualize:
             plt.subplot(232)
             plt.imshow(subset)

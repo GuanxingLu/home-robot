@@ -38,10 +38,10 @@ dependencies:
     # Neural networks
     - openai-clip
     - timm
-    - pandas>=2
+    # - pandas
     - mss
     # visualizations and debugging
-    - matplotlib>=3
+    # - matplotlib
     # Command line tools
     - click
     # data tools
@@ -49,11 +49,9 @@ dependencies:
     - atomicwrites
     - loguru
     - yacs
-    - h5py>=3.9
+    # - h5py
     - imageio
     - pygifsicle
     - pynput
-      # - git+https://github.com/openai/CLIP.git
-    - open3d>=0.17
-    # For MiDaS
-    #- imutils
+    # - git+https://github.com/openai/CLIP.git
+    - open3d

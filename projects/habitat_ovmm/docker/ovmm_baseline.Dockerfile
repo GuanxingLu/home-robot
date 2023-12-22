@@ -1,4 +1,5 @@
-FROM fairembodied/habitat-challenge:homerobot-ovmm-challenge-2023-v0.2
+# FROM fairembodied/habitat-challenge:homerobot-ovmm-challenge-2023-v0.2
+FROM fairembodied/habitat-challenge:homerobot-ovmm-challenge-2023
 
 # install baseline agent requirements
 RUN /bin/bash -c "\
@@ -7,9 +8,9 @@ RUN /bin/bash -c "\
     && git submodule update --init --recursive src/third_party/detectron2 \
         src/home_robot/home_robot/perception/detection/detic/Detic \
         src/third_party/contact_graspnet \
-    && pip install -e src/third_party/detectron2 \
-    && pip install -r src/home_robot/home_robot/perception/detection/detic/Detic/requirements.txt \
-    && pip install -e src/home_robot \
+    && pip install -e src/third_party/detectron2 -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip install -r src/home_robot/home_robot/perception/detection/detic/Detic/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip install -e src/home_robot -i https://pypi.tuna.tsinghua.edu.cn/simple \
     "
 
 # download pretrained Detic checkpoint

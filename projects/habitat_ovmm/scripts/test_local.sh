@@ -27,8 +27,9 @@ done
 
 docker run \
       -v $(realpath ../../data):/home-robot/data \
-      --runtime=nvidia \
       --gpus all \
       -e "AGENT_EVALUATION_TYPE=local" \
       -e "LOCAL_ARGS='habitat.dataset.split=${SPLIT}'" \
       ${DOCKER_NAME}
+
+      # --runtime=nvidia \
