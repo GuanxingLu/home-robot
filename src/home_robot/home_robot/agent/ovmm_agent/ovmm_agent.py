@@ -20,6 +20,8 @@ from home_robot.perception.wrapper import (
     read_category_map_file,
 )
 
+from termcolor import cprint
+
 
 class Skill(IntEnum):
     NAV_TO_OBJ = auto()
@@ -94,6 +96,13 @@ class OpenVocabManipAgent(ObjectNavAgent):
             from home_robot.agent.ovmm_agent.ppo_agent import PPOAgent
 
             self.place_agent = PPOAgent(
+                config,
+                config.AGENT.SKILLS.PLACE,
+                device_id=device_id,
+            )
+        elif config.AGENT.SKILLS.PLACE.type == "llava" and not self.skip_skills.place:
+            from home_robot.agent.ovmm_agent.llava_agent import LLaVAgent
+            self.place_agent = LLaVAgent(
                 config,
                 config.AGENT.SKILLS.PLACE,
                 device_id=device_id,
@@ -189,7 +198,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.pick_start_step = torch.tensor([0] * self.num_environments)
         self.gaze_at_obj_start_step = torch.tensor([0] * self.num_environments)
         self.place_start_step = torch.tensor([0] * self.num_environments)
-        self.gaze_at_obj_start_step = torch.tensor([0] * self.num_environments)
+        self.gaze_at_rec_start_step = torch.tensor([1] * self.num_environments) # HACK: the timestep is start from 1
         self.fall_wait_start_step = torch.tensor([0] * self.num_environments)
         self.is_gaze_done = torch.tensor([0] * self.num_environments)
         self.place_done = torch.tensor([0] * self.num_environments)
@@ -207,6 +216,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.place_start_step[e] = 0
         self.pick_start_step[e] = 0
         self.gaze_at_obj_start_step[e] = 0
+        self.gaze_at_rec_start_step[e] = 1  # HACK: the timestep is start from 1
         self.fall_wait_start_step[e] = 0
         self.is_gaze_done[e] = 0
         self.place_done[e] = 0
@@ -277,6 +287,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             # We reuse gaze agent between pick and place
             if self.gaze_agent is not None:
                 self.gaze_agent.reset_vectorized_for_env(e)
+            self.gaze_at_rec_start_step[e] = self.timesteps[e]
         elif next_skill == Skill.PLACE:
             self.place_start_step[e] = self.timesteps[e]
         elif next_skill == Skill.FALL_WAIT:
@@ -381,6 +392,21 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 f"Something is wrong. Episode should have ended. Place step: {place_step}, Timestep: {self.timesteps[0]}"
             )
         return action
+    
+    def _hardcoded_gaze(self, obs: Observations, info: Dict[str, Any]):
+        """
+        """
+        new_state = None
+
+        place_step = self.timesteps[0] - self.gaze_at_rec_start_step[0]
+        if place_step == 0:
+            cprint("use hardcoded gaze policy: MANIPULATION_MODE", 'cyan')
+            action = DiscreteNavigationAction.MANIPULATION_MODE
+        else:
+            action = None
+            new_state = Skill.PLACE
+
+        return action, info, new_state
 
     def _rl_place(self, obs: Observations, info: Dict[str, Any]):
         place_step = self.timesteps[0] - self.place_start_step[0]
@@ -394,6 +420,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             if terminate:
                 action = DiscreteNavigationAction.DESNAP_OBJECT
                 self.place_done[0] = 1
+        return action, info
+
+    def _llava_place(self, obs: Observations, info: Dict[str, Any]):
+        place_step = self.timesteps[0] - self.place_start_step[0]
+        action, info, terminate = self.place_agent.act(obs, info)
         return action, info
 
     """
@@ -516,7 +547,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.skip_skills.gaze_at_rec:
             terminate = True
         else:
-            action, info, terminate = self.gaze_agent.act(obs, info)
+            gaze_type = self.config.AGENT.SKILLS.GAZE_OBJ.type
+            if gaze_type == "hardcoded":
+                action, info, terminate = self._hardcoded_gaze(obs, info)
+            else:
+                action, info, terminate = self.gaze_agent.act(obs, info)
         new_state = None
         if terminate:
             action = None
@@ -535,10 +570,15 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action, info = self.place_policy(obs, info)
         elif place_type == "rl":
             action, info = self._rl_place(obs, info)
+        elif place_type == "llava":
+            action, info = self._llava_place(obs, info)
         else:
             raise ValueError(f"Got unexpected value for PLACE.type: {place_type}")
         new_state = None
-        if action == DiscreteNavigationAction.STOP:
+        if type(action) == DiscreteNavigationAction and action == DiscreteNavigationAction.STOP:
+            action = None
+            new_state = Skill.FALL_WAIT
+        elif type(action) == np.ndarray and np.allclose(action, np.array([0., 0., 0., 0., 0., 0., 0., -1., 0., 0., 0., -1.])):
             action = None
             new_state = Skill.FALL_WAIT
         return action, info, new_state

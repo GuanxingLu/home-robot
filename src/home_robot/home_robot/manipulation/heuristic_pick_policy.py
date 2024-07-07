@@ -47,7 +47,7 @@ class HeuristicPickPolicy(HeuristicPlacePolicy):
         obs: Observations,
         vis_inputs: Optional[Dict] = None,
         arm_reachability_check: bool = False,
-        visualize: bool = True,
+        visualize: bool = False,
     ):
         goal_object_mask = (
             obs.semantic

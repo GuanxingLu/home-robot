@@ -157,7 +157,7 @@ class Visualizer:
         self.last_xy = None
 
     def set_vis_dir(self, scene_id: str, episode_id: str):
-        self.print_images = True
+        # self.print_images = True
         self.vis_dir = os.path.join(self.default_vis_dir, f"{scene_id}_{episode_id}")
         shutil.rmtree(self.vis_dir, ignore_errors=True)
         os.makedirs(self.vis_dir, exist_ok=True)
@@ -169,6 +169,10 @@ class Visualizer:
         semantic_map_vis = Image.new(
             "P", (semantic_map.shape[1], semantic_map.shape[0])
         )
+        # if semantic map is all 0, then return a blank image
+        # sem_map_sum = np.sum(semantic_map)
+        # print("sem_map_sum", sem_map_sum)
+        # if sem_map_sum != 0:
         semantic_map_vis.putpalette(palette)
         semantic_map_vis.putdata(semantic_map.flatten().astype(np.uint8))
 
@@ -306,14 +310,14 @@ class Visualizer:
         # if curr_skill is not None, place the skill name below the third person image
         text = None
         if curr_skill is not None and curr_action is not None:
-            text = curr_skill + ": " + curr_action
+            text = 'STEP: ' + str(timestep) + ', ' + curr_skill + ": " + curr_action
         elif curr_skill is not None:
-            text = curr_skill
+            text = 'STEP: ' + str(timestep) + ', ' + curr_skill
         if text is not None:
             image_vis = self._put_text_on_image(
                 image_vis,
                 text,
-                V.THIRD_PERSON_X1,
+                V.THIRD_PERSON_X1 - 50,
                 V.Y2,
                 V.THIRD_PERSON_W,
                 V.BOTTOM_PADDING,
@@ -397,7 +401,7 @@ class Visualizer:
                 self.update_semantic_map_with_instances(semantic_map, instance_map)
 
             # Semantic categories
-            semantic_map_vis = self.get_semantic_vis(semantic_map, palette)
+            semantic_map_vis = self.get_semantic_vis(semantic_map, palette) # (480, 480)
             semantic_map_vis = np.flipud(semantic_map_vis)
 
             semantic_map_vis = cv2.resize(
@@ -441,7 +445,7 @@ class Visualizer:
             )
 
         # First-person RGB frame
-        if semantic_frame is not None:
+        if semantic_frame is not None:  # (640, 480, 4), uint8
             image_vis = self._visualize_semantic_frame(
                 image_vis, semantic_frame, palette
             )
@@ -455,6 +459,8 @@ class Visualizer:
                 os.path.join(self.vis_dir, "snapshot_{:03d}.png".format(timestep)),
                 image_vis,
             )
+
+        return image_vis
 
     def _visualize_semantic_frame(
         self, image_vis: np.ndarray, semantic_frame: np.ndarray, palette: List
@@ -470,7 +476,7 @@ class Visualizer:
         Returns:
             image_vis (np.ndarray): complete image panel
         """
-        rgb_frame = semantic_frame[:, :, [2, 1, 0]]
+        rgb_frame = semantic_frame[:, :, [2, 1, 0]] # 0-255, uint8
         image_vis[V.Y1 : V.Y2, V.FIRST_RGB_X1 : V.FIRST_RGB_X2] = cv2.resize(
             rgb_frame, (V.FIRST_PERSON_W, V.HEIGHT)
         )

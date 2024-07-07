@@ -310,6 +310,15 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
             if type(action) == ContinuousFullBodyAction:
                 # We specify only one arm extension that rolls over to all the arm joints
                 arm_action = np.concatenate([action.joints[0:1], action.joints[4:]])
+
+            # HACK: head orientation: minus the current joint position like DiscreteNavigationAction.MANIPULATION_MODE
+            # if self.config.AGENT.SKILLS.PLACE.type == "heuristic":
+            # if self.config.GROUND_TRUTH_SEMANTICS and arm_action[-1] == - np.pi / 4:
+            if self.config.GROUND_TRUTH_SEMANTICS:
+                curr_joint_pos = self.get_current_joint_pos(habitat_obs)
+                arm_action[-2:] = arm_action[-2:] - curr_joint_pos[-2:]
+
+            # max_joints_delta: 0.1 or 0.025, ...
             cont_action = np.concatenate(
                 [
                     np.clip(arm_action / self.max_joints_delta, -1, 1),
@@ -365,6 +374,11 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
                     ],
                 ]
             )
+
+        # for LLaVA policy
+        elif type(action) == np.ndarray:
+            cont_action = action
+        
         else:
             raise ValueError(
                 f"Action needs to be of one of the following types: DiscreteNavigationAction, ContinuousNavigationAction or ContinuousFullBodyAction, was: {type(action)}"
@@ -387,6 +401,11 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
                 info["curr_action"] = DiscreteNavigationAction(action).name
             self._process_info(info)
         habitat_action = self._preprocess_action(action, self._last_habitat_obs)
+
+        # print(f"habitat_action: {habitat_action}")
+
+        habitat_action_copy = habitat_action.copy()
+
         habitat_obs, _, dones, infos = self.habitat_env.step(habitat_action)
         if info is not None:
             # copy the keys in info starting with the prefix "is_curr_skill" into infos
@@ -395,4 +414,7 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
                     infos[key] = info[key]
         self._last_habitat_obs = habitat_obs
         self._last_obs = self._preprocess_obs(habitat_obs)
+        # infos['action'] = habitat_action
+        infos['action'] = habitat_action_copy
+
         return self._last_obs, dones, infos

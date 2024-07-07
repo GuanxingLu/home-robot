@@ -108,7 +108,7 @@ class Visualizer:
         self.last_xy = None
 
     def set_vis_dir(self, scene_id: str, episode_id: str):
-        self.print_images = True
+        # self.print_images = True
         self.vis_dir = os.path.join(self.default_vis_dir, f"{scene_id}_{episode_id}")
         shutil.rmtree(self.vis_dir, ignore_errors=True)
         os.makedirs(self.vis_dir, exist_ok=True)

@@ -17,6 +17,9 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from utils.env_utils import create_ovmm_env_fn
 from utils.metrics_utils import get_stats_from_episode_metrics
+from termcolor import cprint
+import copy
+
 
 if TYPE_CHECKING:
     from habitat.core.dataset import BaseEpisode
@@ -243,6 +246,29 @@ class OVMMEvaluator(PPOTrainer):
         :return: dict containing metrics tracked by environment.
         """
 
+        def preprocess_obs(observations):
+            observation_save = observations.to_dict()
+            observation_save['task_observations']["object_embedding"] = None
+            return observation_save
+        
+        def preprocess_info(info):
+            info_save = copy.deepcopy(info)
+            info_save["semantic_frame"] = None
+            info_save['semantic_category_mapping'] = None
+            return info_save
+        
+        def preprocess_action(action):
+            '''
+            convert to str (.2f)
+            '''
+            if isinstance(action, np.ndarray):
+                action_save = action.tolist()
+                # .2f
+                action_save = [round(a, 4) for a in action_save]
+            else:
+                action_save = str(action)
+            return action_save
+
         env_num_episodes = self._env.number_of_episodes
         if num_episodes is None:
             num_episodes = env_num_episodes
@@ -270,12 +296,48 @@ class OVMMEvaluator(PPOTrainer):
                 f"{current_episode.episode_id}"
             )
             current_episode_metrics = {}
-            obs_data = [observations]
+            expert_data = []
+            skill_start_idx = 0
+            step = 0
+            fall_wait = False
             while not done:
-                action, info, _ = agent.act(observations)
-                observations, done, hab_info = self._env.apply_action(action, info)
+                
+                sample = {'obs_data': None, 'action_data': None, 'info_data': None, 'step': 0}
+
+                action, info, _ = agent.act(observations)   # e.g., action: DiscreteNavigationAction
+                # print(f"action:{action}, step: {info['timestep']}")
+
                 if self.data_dir:
-                    obs_data.append(observations)
+                    if info['curr_skill'] != 'FALL_WAIT':
+                        sample['obs_data'] = preprocess_obs(observations)
+                        sample['step'] = step
+                    elif info['curr_skill'] == 'FALL_WAIT' and not fall_wait:
+                        sample['obs_data'] = preprocess_obs(observations)
+                        sample['step'] = step
+
+                observations, done, hab_info = self._env.apply_action(action, info)
+                # print(hab_info)
+
+                # TODO: if not fall wait action, save the data
+                if self.data_dir:                    
+                    if info['curr_skill'] != 'FALL_WAIT':
+                        # sample['action_data'] = preprocess_action(action)
+                        sample['action_raw_data'] = preprocess_action(action)
+                        sample['action_float_data'] = preprocess_action(hab_info['action'])
+                        sample['info_data'] = preprocess_info(info)
+                        expert_data.append(sample)
+                        # cprint(f"action_float_data: {sample['action_float_data']}", 'cyan')
+                    elif info['curr_skill'] == 'FALL_WAIT' and not fall_wait:
+                        fall_wait = True
+                        sample['action_raw_data'] = preprocess_action(action)
+                        sample['action_float_data'] = preprocess_action(hab_info['action'])
+                        sample['info_data'] = preprocess_info(info)
+                        expert_data.append(sample)
+                        # cprint(f"fall wait, {action}, {hab_info['action']}", 'cyan')
+
+
+                step += 1
+
                 if "skill_done" in info and info["skill_done"] != "":
                     metrics = extract_scalars_from_info(hab_info)
                     metrics_at_skill_end = {
@@ -287,14 +349,6 @@ class OVMMEvaluator(PPOTrainer):
                     }
                     if "goal_name" in info:
                         current_episode_metrics["goal_name"] = info["goal_name"]
-
-            if self.data_dir:
-                import pickle
-
-                data_episode_path = os.path.join(self.data_dir, current_episode_key)
-                os.makedirs(data_episode_path, exist_ok=True)
-                with open(os.path.join(data_episode_path, "obs_data.pkl"), "wb") as f:
-                    pickle.dump(obs_data, f)
 
             metrics = extract_scalars_from_info(hab_info)
             metrics_at_episode_end = {"END." + k: v for k, v in metrics.items()}
@@ -309,6 +363,29 @@ class OVMMEvaluator(PPOTrainer):
             if len(episode_metrics) % self.metrics_save_freq == 0:
                 aggregated_metrics = self._aggregate_metrics(episode_metrics)
                 self._write_results(episode_metrics, aggregated_metrics)
+                average_metrics = self._summarize_metrics(episode_metrics)
+                self._print_summary(average_metrics)
+
+            # The task is considered successful if the agent places the object without robot collisions
+            overall_success = (
+                current_episode_metrics["END.robot_collisions.robot_scene_colls"] == 0
+                ) * (current_episode_metrics["END.ovmm_place_success"] == 1)
+
+            cprint(f"Ep {current_episode_key}, success: {overall_success}, col: {current_episode_metrics['END.robot_collisions.robot_scene_colls']}, does_want_terminate: {current_episode_metrics['END.does_want_terminate']}, inst: {None}", "green" if overall_success else "red")
+
+            # Save demo
+            # if self.data_dir:
+            if self.data_dir and overall_success:
+                cprint(f"Saving data for episode {current_episode_key}", "green")
+                import pickle
+                data_episode_path = os.path.join(self.data_dir, current_episode_key)
+                os.makedirs(data_episode_path, exist_ok=True)
+                with open(os.path.join(data_episode_path, "obs_data.pkl"), "wb") as f:
+                    pickle.dump(expert_data, f)
+
+                # save metric
+                with open(os.path.join(data_episode_path, "misc.pkl"), "wb") as f:
+                    pickle.dump(current_episode_metrics, f)
 
             count_episodes += 1
             pbar.update(1)

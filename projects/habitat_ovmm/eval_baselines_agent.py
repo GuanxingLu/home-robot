@@ -62,7 +62,7 @@ if __name__ == "__main__":
         "--force_step",
         type=int,
         default=20,
-        help="force to switch to new episode after a number of steps",
+        help="force to switch to new episode after a number of steps (NOT USED?)",
     )
     parser.add_argument(
         "--data_dir",

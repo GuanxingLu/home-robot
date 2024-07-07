@@ -33,6 +33,7 @@ class HeuristicPlacePolicy(nn.Module):
 
     # TODO: read these values from the robot kinematic model
     look_at_ee = np.array([-np.pi / 2, -np.pi / 4])
+    # look_at_ee = np.array([-np.pi / 2, -0.1 * np.pi]) # not good
     max_arm_height = 1.2
 
     def __init__(

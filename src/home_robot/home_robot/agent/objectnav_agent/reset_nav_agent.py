@@ -24,6 +24,7 @@ from .objectnav_agent_module import ObjectNavAgentModule
 debug_frontier_map = False
 
 
+# TODO: NOT USED
 class ResetNavAgent(Agent):
     """Simple object nav agent based on a 2D semantic map"""
 
