@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
+from termcolor import cprint
 from trimesh import transformations as tra
 
 from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
@@ -19,8 +20,6 @@ from home_robot.perception.wrapper import (
     build_vocab_from_category_map,
     read_category_map_file,
 )
-
-from termcolor import cprint
 
 
 class Skill(IntEnum):
@@ -102,6 +101,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             )
         elif config.AGENT.SKILLS.PLACE.type == "llava" and not self.skip_skills.place:
             from home_robot.agent.ovmm_agent.llava_agent import LLaVAgent
+
             self.place_agent = LLaVAgent(
                 config,
                 config.AGENT.SKILLS.PLACE,
@@ -198,7 +198,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.pick_start_step = torch.tensor([0] * self.num_environments)
         self.gaze_at_obj_start_step = torch.tensor([0] * self.num_environments)
         self.place_start_step = torch.tensor([0] * self.num_environments)
-        self.gaze_at_rec_start_step = torch.tensor([1] * self.num_environments) # HACK: the timestep is start from 1
+        self.gaze_at_rec_start_step = torch.tensor(
+            [1] * self.num_environments
+        )  # HACK: the timestep is start from 1
         self.fall_wait_start_step = torch.tensor([0] * self.num_environments)
         self.is_gaze_done = torch.tensor([0] * self.num_environments)
         self.place_done = torch.tensor([0] * self.num_environments)
@@ -392,15 +394,14 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 f"Something is wrong. Episode should have ended. Place step: {place_step}, Timestep: {self.timesteps[0]}"
             )
         return action
-    
+
     def _hardcoded_gaze(self, obs: Observations, info: Dict[str, Any]):
-        """
-        """
+        """ """
         new_state = None
 
         place_step = self.timesteps[0] - self.gaze_at_rec_start_step[0]
         if place_step == 0:
-            cprint("use hardcoded gaze policy: MANIPULATION_MODE", 'cyan')
+            cprint("use hardcoded gaze policy: MANIPULATION_MODE", "cyan")
             action = DiscreteNavigationAction.MANIPULATION_MODE
         else:
             action = None
@@ -575,10 +576,16 @@ class OpenVocabManipAgent(ObjectNavAgent):
         else:
             raise ValueError(f"Got unexpected value for PLACE.type: {place_type}")
         new_state = None
-        if type(action) == DiscreteNavigationAction and action == DiscreteNavigationAction.STOP:
+        if (
+            type(action) == DiscreteNavigationAction
+            and action == DiscreteNavigationAction.STOP
+        ):
             action = None
             new_state = Skill.FALL_WAIT
-        elif type(action) == np.ndarray and np.allclose(action, np.array([0., 0., 0., 0., 0., 0., 0., -1., 0., 0., 0., -1.])):
+        elif type(action) == np.ndarray and np.allclose(
+            action,
+            np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0]),
+        ):
             action = None
             new_state = Skill.FALL_WAIT
         return action, info, new_state

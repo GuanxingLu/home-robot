@@ -77,7 +77,9 @@ class FMMPlanner:
             goal_x, goal_y = self._find_nearest_goal([goal_x, goal_y])
 
         traversible_ma[goal_x, goal_y] = 0
-        dd = skfmm.distance(traversible_ma, dx=1)   # FIXME: may be very slow when agent fail?
+        dd = skfmm.distance(
+            traversible_ma, dx=1
+        )  # FIXME: may be very slow when agent fail?
         dd = ma.filled(dd, np.max(dd) + 1)
         self.fmm_dist = dd
         return

@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import copy
 import json
 import os
 import time
@@ -14,12 +15,10 @@ import pandas as pd
 from habitat_baselines.rl.ppo.ppo_trainer import PPOTrainer
 from habitat_baselines.utils.info_dict import extract_scalars_from_info
 from omegaconf import DictConfig
+from termcolor import cprint
 from tqdm import tqdm
 from utils.env_utils import create_ovmm_env_fn
 from utils.metrics_utils import get_stats_from_episode_metrics
-from termcolor import cprint
-import copy
-
 
 if TYPE_CHECKING:
     from habitat.core.dataset import BaseEpisode
@@ -248,19 +247,19 @@ class OVMMEvaluator(PPOTrainer):
 
         def preprocess_obs(observations):
             observation_save = observations.to_dict()
-            observation_save['task_observations']["object_embedding"] = None
+            observation_save["task_observations"]["object_embedding"] = None
             return observation_save
-        
+
         def preprocess_info(info):
             info_save = copy.deepcopy(info)
             info_save["semantic_frame"] = None
-            info_save['semantic_category_mapping'] = None
+            info_save["semantic_category_mapping"] = None
             return info_save
-        
+
         def preprocess_action(action):
-            '''
+            """
             convert to str (.2f)
-            '''
+            """
             if isinstance(action, np.ndarray):
                 action_save = action.tolist()
                 # .2f
@@ -301,40 +300,50 @@ class OVMMEvaluator(PPOTrainer):
             step = 0
             fall_wait = False
             while not done:
-                
-                sample = {'obs_data': None, 'action_data': None, 'info_data': None, 'step': 0}
 
-                action, info, _ = agent.act(observations)   # e.g., action: DiscreteNavigationAction
+                sample = {
+                    "obs_data": None,
+                    "action_data": None,
+                    "info_data": None,
+                    "step": 0,
+                }
+
+                action, info, _ = agent.act(
+                    observations
+                )  # e.g., action: DiscreteNavigationAction
                 # print(f"action:{action}, step: {info['timestep']}")
 
                 if self.data_dir:
-                    if info['curr_skill'] != 'FALL_WAIT':
-                        sample['obs_data'] = preprocess_obs(observations)
-                        sample['step'] = step
-                    elif info['curr_skill'] == 'FALL_WAIT' and not fall_wait:
-                        sample['obs_data'] = preprocess_obs(observations)
-                        sample['step'] = step
+                    if info["curr_skill"] != "FALL_WAIT":
+                        sample["obs_data"] = preprocess_obs(observations)
+                        sample["step"] = step
+                    elif info["curr_skill"] == "FALL_WAIT" and not fall_wait:
+                        sample["obs_data"] = preprocess_obs(observations)
+                        sample["step"] = step
 
                 observations, done, hab_info = self._env.apply_action(action, info)
                 # print(hab_info)
 
                 # TODO: if not fall wait action, save the data
-                if self.data_dir:                    
-                    if info['curr_skill'] != 'FALL_WAIT':
+                if self.data_dir:
+                    if info["curr_skill"] != "FALL_WAIT":
                         # sample['action_data'] = preprocess_action(action)
-                        sample['action_raw_data'] = preprocess_action(action)
-                        sample['action_float_data'] = preprocess_action(hab_info['action'])
-                        sample['info_data'] = preprocess_info(info)
+                        sample["action_raw_data"] = preprocess_action(action)
+                        sample["action_float_data"] = preprocess_action(
+                            hab_info["action"]
+                        )
+                        sample["info_data"] = preprocess_info(info)
                         expert_data.append(sample)
                         # cprint(f"action_float_data: {sample['action_float_data']}", 'cyan')
-                    elif info['curr_skill'] == 'FALL_WAIT' and not fall_wait:
+                    elif info["curr_skill"] == "FALL_WAIT" and not fall_wait:
                         fall_wait = True
-                        sample['action_raw_data'] = preprocess_action(action)
-                        sample['action_float_data'] = preprocess_action(hab_info['action'])
-                        sample['info_data'] = preprocess_info(info)
+                        sample["action_raw_data"] = preprocess_action(action)
+                        sample["action_float_data"] = preprocess_action(
+                            hab_info["action"]
+                        )
+                        sample["info_data"] = preprocess_info(info)
                         expert_data.append(sample)
                         # cprint(f"fall wait, {action}, {hab_info['action']}", 'cyan')
-
 
                 step += 1
 
@@ -369,15 +378,19 @@ class OVMMEvaluator(PPOTrainer):
             # The task is considered successful if the agent places the object without robot collisions
             overall_success = (
                 current_episode_metrics["END.robot_collisions.robot_scene_colls"] == 0
-                ) * (current_episode_metrics["END.ovmm_place_success"] == 1)
+            ) * (current_episode_metrics["END.ovmm_place_success"] == 1)
 
-            cprint(f"Ep {current_episode_key}, success: {overall_success}, col: {current_episode_metrics['END.robot_collisions.robot_scene_colls']}, does_want_terminate: {current_episode_metrics['END.does_want_terminate']}, inst: {None}", "green" if overall_success else "red")
+            cprint(
+                f"Ep {current_episode_key}, success: {overall_success}, col: {current_episode_metrics['END.robot_collisions.robot_scene_colls']}, does_want_terminate: {current_episode_metrics['END.does_want_terminate']}, inst: {None}",
+                "green" if overall_success else "red",
+            )
 
             # Save demo
             # if self.data_dir:
             if self.data_dir and overall_success:
                 cprint(f"Saving data for episode {current_episode_key}", "green")
                 import pickle
+
                 data_episode_path = os.path.join(self.data_dir, current_episode_key)
                 os.makedirs(data_episode_path, exist_ok=True)
                 with open(os.path.join(data_episode_path, "obs_data.pkl"), "wb") as f:

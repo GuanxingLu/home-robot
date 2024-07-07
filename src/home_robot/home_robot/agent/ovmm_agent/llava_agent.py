@@ -6,7 +6,9 @@
 
 
 import copy
+import os
 import random
+import sys
 from collections import OrderedDict
 from typing import Any, Tuple, Union
 
@@ -28,7 +30,23 @@ from habitat_baselines.common.obs_transformers import (
 )
 from habitat_baselines.config.default import get_config as get_habitat_config
 from habitat_baselines.utils.common import batch_obs
+from llava.constants import (
+    DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    IMAGE_TOKEN_INDEX,
+)
+from llava.conversation import SeparatorStyle, conv_templates
+from llava.mm_utils import (
+    get_model_name_from_path,
+    process_images,
+    tokenizer_image_token,
+)
+from llava.model.builder import load_pretrained_model
+from llava.utils import disable_torch_init
 from omegaconf import OmegaConf
+from PIL import Image
+from termcolor import cprint
 
 import home_robot.utils.pose as pu
 from home_robot.agent.ovmm_agent.complete_obs_space import get_complete_obs_space
@@ -42,16 +60,6 @@ from home_robot.utils.constants import (
     MAX_DEPTH_REPLACEMENT_VALUE,
     MIN_DEPTH_REPLACEMENT_VALUE,
 )
-import sys
-import os
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
-from llava.conversation import conv_templates, SeparatorStyle
-from llava.model.builder import load_pretrained_model
-from llava.utils import disable_torch_init
-from llava.mm_utils import tokenizer_image_token, process_images, get_model_name_from_path
-from termcolor import cprint
-from PIL import Image
-
 
 random_generator = np.random.RandomState()
 
@@ -103,15 +111,21 @@ class LLaVAgent(Agent):
         # load LLaVA
         disable_torch_init()
         # model_path = '/mnt/disk_1/yiqin/ckpt/llava-v1.5-7b'   # originla llava
-        model_path = '/mnt/disk_1/guanxing/LLaVA/checkpoints/llava-v1.5-7b-manip-lora-merge'
+        model_path = (
+            "/mnt/disk_1/guanxing/LLaVA/checkpoints/llava-v1.5-7b-manip-lora-merge"
+        )
         model_base = None
         model_path = os.path.expanduser(model_path)
         model_name = get_model_name_from_path(model_path)
-        self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(model_path, model_base, model_name)
+        (
+            self.tokenizer,
+            self.model,
+            self.image_processor,
+            self.context_len,
+        ) = load_pretrained_model(model_path, model_base, model_name)
 
         self.temperature = 0.2
         self.conv_mode = "llava_v1"
-
 
     def reset(self) -> None:
         pass
@@ -140,14 +154,20 @@ class LLaVAgent(Agent):
         sample_random_seed()
         obs = observations.rgb.copy()
 
-        inp = 'Specify the action of manipulating the object.'
+        inp = "Specify the action of manipulating the object."
 
         if obs is not None:
             # first message
             if self.model.config.mm_use_im_start_end:
-                inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
+                inp = (
+                    DEFAULT_IM_START_TOKEN
+                    + DEFAULT_IMAGE_TOKEN
+                    + DEFAULT_IM_END_TOKEN
+                    + "\n"
+                    + inp
+                )
             else:
-                inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
+                inp = DEFAULT_IMAGE_TOKEN + "\n" + inp
 
         conv = conv_templates[self.conv_mode].copy()
         conv.append_message(conv.roles[0], inp)
@@ -157,13 +177,24 @@ class LLaVAgent(Agent):
         # prompt = '<image>\nSpecify the action of manipulating the object.'
         # cprint(prompt, 'cyan')
 
-        input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(self.device)
+        input_ids = (
+            tokenizer_image_token(
+                prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+            )
+            .unsqueeze(0)
+            .to(self.device)
+        )
 
         image = Image.fromarray(obs)
         image_size = image.size
-        image_tensor = process_images([image], self.image_processor, self.model.config) # [1, 3, 336, 336]
+        image_tensor = process_images(
+            [image], self.image_processor, self.model.config
+        )  # [1, 3, 336, 336]
         if type(image_tensor) is list:
-            image_tensor = [image.to(self.model.device, dtype=torch.float16) for image in image_tensor]
+            image_tensor = [
+                image.to(self.model.device, dtype=torch.float16)
+                for image in image_tensor
+            ]
         else:
             image_tensor = image_tensor.to(self.model.device, dtype=torch.float16)
 
@@ -183,26 +214,28 @@ class LLaVAgent(Agent):
                         use_cache=True,
                     )
 
-                outputs = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+                outputs = self.tokenizer.batch_decode(
+                    output_ids, skip_special_tokens=True
+                )[0].strip()
 
-                cprint(outputs, 'cyan')
+                cprint(outputs, "cyan")
 
                 # Map policy controlled arm_action to complete arm_action space
-                step_action = outputs.strip().replace('The action is ', '')
+                step_action = outputs.strip().replace("The action is ", "")
                 step_action = eval(step_action)
 
                 break
 
             except KeyboardInterrupt:
                 sys.exit()
-        
-            except Exception as e:
-                cprint('output is not available', 'red')
 
-        # joints = 
+            except Exception as e:
+                cprint("output is not available", "red")
+
+        # joints =
         # step_action = ContinuousFullBodyAction(joints, xyt=xyt)
 
-        cprint(step_action, 'cyan')
+        cprint(step_action, "cyan")
         step_action = np.array(step_action)
 
         return (

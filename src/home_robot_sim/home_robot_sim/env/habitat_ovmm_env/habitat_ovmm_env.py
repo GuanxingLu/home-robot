@@ -378,7 +378,7 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         # for LLaVA policy
         elif type(action) == np.ndarray:
             cont_action = action
-        
+
         else:
             raise ValueError(
                 f"Action needs to be of one of the following types: DiscreteNavigationAction, ContinuousNavigationAction or ContinuousFullBodyAction, was: {type(action)}"
@@ -415,6 +415,6 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         self._last_habitat_obs = habitat_obs
         self._last_obs = self._preprocess_obs(habitat_obs)
         # infos['action'] = habitat_action
-        infos['action'] = habitat_action_copy
+        infos["action"] = habitat_action_copy
 
         return self._last_obs, dones, infos

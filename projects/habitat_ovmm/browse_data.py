@@ -12,30 +12,31 @@ import argparse
 import glob
 import json
 import os
+import pickle
 import shutil
 import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-import pickle
 
 import cv2
 import numpy as np
 import torch
 from natsort import natsorted
-from home_robot_sim.env.habitat_objectnav_env.visualizer import Visualizer
+from omegaconf import DictConfig, OmegaConf
 from utils.config_utils import (
     create_agent_config,
     create_env_config,
     get_habitat_config,
     get_omega_config,
 )
-from omegaconf import DictConfig, OmegaConf
+
 from home_robot.core.interfaces import (
     ContinuousFullBodyAction,
     ContinuousNavigationAction,
     DiscreteNavigationAction,
 )
+from home_robot_sim.env.habitat_objectnav_env.visualizer import Visualizer
 
 
 def create_video(images, output_file, fps):
@@ -46,6 +47,7 @@ def create_video(images, output_file, fps):
     for image in images:
         video_writer.write(image)
     video_writer.release()
+
 
 def main(args):
     # get habitat config
@@ -61,14 +63,14 @@ def main(args):
         habitat_config, env_config, evaluation_type=args.evaluation_type
     )
     OmegaConf.set_readonly(env_config, False)
-    env_config['VISUALIZE'] = 1
+    env_config["VISUALIZE"] = 1
 
     # load visualizer
     visualizer = Visualizer(env_config)
 
     output_dir = args.data_dir + "_video"
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # load pickle data
     demo_path = os.path.join(args.data_dir, args.trial, "obs_data.pkl")
     with open(demo_path, "rb") as f:
@@ -76,22 +78,24 @@ def main(args):
     # Record video
     images = []
     for sample in demo:
-        obs = sample['obs_data']
-        info = sample['info_data']
-        action = sample['action_data']
-        step = sample['step']
-      
+        obs = sample["obs_data"]
+        info = sample["info_data"]
+        action = sample["action_data"]
+        step = sample["step"]
+
         # concate first-person rgb and semantic frame
-        semantic = np.concatenate([obs.rgb, np.expand_dims(obs.semantic, axis=2)], axis=2)
+        semantic = np.concatenate(
+            [obs.rgb, np.expand_dims(obs.semantic, axis=2)], axis=2
+        )
         semantic = semantic.astype("uint8")
 
         image_vis = visualizer.visualize(
-            timestep = step,
-            semantic_frame = semantic,
-            goal_name = obs.task_observations["goal_name"],
-            visualize_goal = True,
-            third_person_image = obs.third_person_image,     # (512, 512, 3)
-            curr_skill = info['curr_skill'],
+            timestep=step,
+            semantic_frame=semantic,
+            goal_name=obs.task_observations["goal_name"],
+            visualize_goal=True,
+            third_person_image=obs.third_person_image,  # (512, 512, 3)
+            curr_skill=info["curr_skill"],
             # curr_action = info["curr_action"],
         )
         print(f"action: {action}")
@@ -102,6 +106,7 @@ def main(args):
     create_video(images, output_path, fps=5)
     print(f"Video saved to {output_path}")
     print(f"Total frames: {len(images)}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -163,7 +168,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "overrides",
-        default=['VISUALIZE=1'],
+        default=["VISUALIZE=1"],
         nargs=argparse.REMAINDER,
         help="Modify config options from command line",
     )

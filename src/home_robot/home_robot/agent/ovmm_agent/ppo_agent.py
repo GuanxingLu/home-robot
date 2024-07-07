@@ -392,7 +392,7 @@ class PPOAgent(Agent):
             #  Make masks not done till reset (end of episode) will be called
             self.not_done_masks.fill_(True)
             self.prev_actions.copy_(actions)  # type: ignore
-            if self.continuous_actions: # default: True
+            if self.continuous_actions:  # default: True
                 # Clipping actions to the specified limits
                 act = np.clip(
                     actions.cpu().numpy(),

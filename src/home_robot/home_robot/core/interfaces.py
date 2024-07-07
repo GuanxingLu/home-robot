@@ -249,33 +249,33 @@ class Observations:
         obs_dict = {}
 
         # Add typed observations
-        obs_dict['gps'] = self.gps
-        obs_dict['compass'] = self.compass
-        obs_dict['rgb'] = self.rgb
-        obs_dict['depth'] = self.depth
+        obs_dict["gps"] = self.gps
+        obs_dict["compass"] = self.compass
+        obs_dict["rgb"] = self.rgb
+        obs_dict["depth"] = self.depth
         if self.xyz is not None:
-            obs_dict['xyz'] = self.xyz
+            obs_dict["xyz"] = self.xyz
         if self.semantic is not None:
-            obs_dict['semantic'] = self.semantic
+            obs_dict["semantic"] = self.semantic
         if self.camera_K is not None:
-            obs_dict['camera_K'] = self.camera_K
+            obs_dict["camera_K"] = self.camera_K
         if self.instance is not None:
-            obs_dict['instance'] = self.instance
+            obs_dict["instance"] = self.instance
         if self.third_person_image is not None:
-            obs_dict['third_person_image'] = self.third_person_image
+            obs_dict["third_person_image"] = self.third_person_image
         if self.camera_pose is not None:
-            obs_dict['camera_pose'] = self.camera_pose
+            obs_dict["camera_pose"] = self.camera_pose
         if self.camera_K is not None:
-            obs_dict['camera_K'] = self.camera_K
+            obs_dict["camera_K"] = self.camera_K
         if self.joint is not None:
-            obs_dict['joint'] = self.joint
+            obs_dict["joint"] = self.joint
         if self.relative_resting_position is not None:
-            obs_dict['relative_resting_position'] = self.relative_resting_position
+            obs_dict["relative_resting_position"] = self.relative_resting_position
         if self.is_holding is not None:
-            obs_dict['is_holding'] = self.is_holding
+            obs_dict["is_holding"] = self.is_holding
 
         # Add untyped observations
         if self.task_observations is not None:
-            obs_dict['task_observations'] = self.task_observations
+            obs_dict["task_observations"] = self.task_observations
 
         return obs_dict

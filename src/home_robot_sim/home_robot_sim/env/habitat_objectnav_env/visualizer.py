@@ -310,9 +310,9 @@ class Visualizer:
         # if curr_skill is not None, place the skill name below the third person image
         text = None
         if curr_skill is not None and curr_action is not None:
-            text = 'STEP: ' + str(timestep) + ', ' + curr_skill + ": " + curr_action
+            text = "STEP: " + str(timestep) + ", " + curr_skill + ": " + curr_action
         elif curr_skill is not None:
-            text = 'STEP: ' + str(timestep) + ', ' + curr_skill
+            text = "STEP: " + str(timestep) + ", " + curr_skill
         if text is not None:
             image_vis = self._put_text_on_image(
                 image_vis,
@@ -401,7 +401,9 @@ class Visualizer:
                 self.update_semantic_map_with_instances(semantic_map, instance_map)
 
             # Semantic categories
-            semantic_map_vis = self.get_semantic_vis(semantic_map, palette) # (480, 480)
+            semantic_map_vis = self.get_semantic_vis(
+                semantic_map, palette
+            )  # (480, 480)
             semantic_map_vis = np.flipud(semantic_map_vis)
 
             semantic_map_vis = cv2.resize(
@@ -476,7 +478,7 @@ class Visualizer:
         Returns:
             image_vis (np.ndarray): complete image panel
         """
-        rgb_frame = semantic_frame[:, :, [2, 1, 0]] # 0-255, uint8
+        rgb_frame = semantic_frame[:, :, [2, 1, 0]]  # 0-255, uint8
         image_vis[V.Y1 : V.Y2, V.FIRST_RGB_X1 : V.FIRST_RGB_X2] = cv2.resize(
             rgb_frame, (V.FIRST_PERSON_W, V.HEIGHT)
         )
